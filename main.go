@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -31,8 +32,19 @@ func main() {
 	}
 
 	client := &http.Client{Timeout: 5 * time.Second}
+	var wg sync.WaitGroup
+
+	slots := make(chan int, 3)
 
 	for _, url := range os.Args[1:] {
-		checkURL(client, url)
+		slots <- 1
+		wg.Go(func() {
+			defer func() {
+				<-slots
+			}()
+			checkURL(client, url)
+		})
 	}
+
+	wg.Wait()
 }
