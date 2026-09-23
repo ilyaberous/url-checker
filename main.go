@@ -1,9 +1,9 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 )
@@ -38,18 +38,34 @@ func checkURL(client *http.Client, url string) CheckResult {
 }
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Ошибка: url ресурса не введен!")
+	concurrency := flag.Int("concurrency", 3, "Количество одновременных проверок")
+	timeout := flag.Duration("timeout", 5*time.Second, "Таймаут запроса")
+	flag.Parse()
+
+	urls := flag.Args()
+
+	if len(urls) == 0 {
+		fmt.Println("Ошибка: url ресурсов не введен!")
 		return
 	}
 
-	client := &http.Client{Timeout: 5 * time.Second}
+	if *concurrency <= 0 {
+		fmt.Println("Ошибка: concurrency должно быть больше нуля")
+		return
+	}
 
-	slots := make(chan int, 3)
+	if *timeout <= 0 {
+		fmt.Println("Ошибка: timeout должен быть больше нуля")
+		return
+	}
+
+	client := &http.Client{Timeout: *timeout}
+
+	slots := make(chan int, *concurrency)
 	var wg sync.WaitGroup
-	results := make(chan CheckResult, len(os.Args[1:]))
+	results := make(chan CheckResult, len(urls))
 
-	for _, url := range os.Args[1:] {
+	for _, url := range urls {
 		slots <- 1
 		wg.Go(func() {
 			defer func() {
