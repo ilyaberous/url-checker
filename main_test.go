@@ -53,3 +53,30 @@ func TestCheckURLInvalidURL(t *testing.T) {
 		t.Fatalf("Ожидался URL %s, получен %s", url, result.URL)
 	}
 }
+
+func TestCheckURLServerError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+		},
+	))
+
+	defer server.Close()
+
+	result := checkURL(server.Client(), server.URL)
+
+	//Проверка 1 - ответ должен быть без ошибки
+	if result.Error != nil {
+		t.Fatalf("Ожидался ответ без ошибки, но получен: %v", result.Error)
+	}
+
+	//Проверка 2 - статус код ответа должен быть InternalServerError
+	if result.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("Ожидался статус-код InternalServerError, но получен: %d", result.StatusCode)
+	}
+
+	// Проверка 3 — в результате сохранён переданный URL
+	if result.URL != server.URL {
+		t.Fatalf("Ожидался URL %s, получен %s", server.URL, result.URL)
+	}
+}
