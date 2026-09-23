@@ -3,7 +3,9 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
+	"time"
 )
 
 func TestCheckURLSuccess(t *testing.T) {
@@ -73,6 +75,42 @@ func TestCheckURLServerError(t *testing.T) {
 	//Проверка 2 - статус код ответа должен быть InternalServerError
 	if result.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("Ожидался статус-код InternalServerError, но получен: %d", result.StatusCode)
+	}
+
+	// Проверка 3 — в результате сохранён переданный URL
+	if result.URL != server.URL {
+		t.Fatalf("Ожидался URL %s, получен %s", server.URL, result.URL)
+	}
+}
+
+func TestCheckURLTimeout(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(500 * time.Millisecond)
+			w.WriteHeader(http.StatusOK)
+		},
+	))
+
+	defer server.Close()
+
+	client := server.Client()
+	client.Timeout = 50 * time.Millisecond
+
+	result := checkURL(client, server.URL)
+
+	//Проверка 1 - в ответе должна быть ошибка
+	if result.Error == nil {
+		t.Fatalf("Ожидалась ошибка таймаута, но получен: %v", result.Error)
+	}
+
+	//Проверка 2 - ошибка должна быть связана с timeout
+	if !os.IsTimeout(result.Error) {
+		t.Fatalf("Ожидалась ошибка таймаута, но получено: %v", result.Error)
+	}
+
+	//Проверка 2 - статус код ответа должен быть равен 0
+	if result.StatusCode != 0 {
+		t.Fatalf("Ожидался статус-код равный 0 (Ошибка), но получен: %d", result.StatusCode)
 	}
 
 	// Проверка 3 — в результате сохранён переданный URL
